@@ -136,8 +136,8 @@ $button = Replace-RegexRequired $button '        private void searchBox_TextChan
 
 [IO.File]::WriteAllText($buttonPath, $button, $utf8Bom)
 
-# 2. Keep the core QTTabBar COM object loaded as the Explorer backend on Windows 11,
-#    while collapsing its legacy tab strip so Explorer's native tabs stay visible.
+# 2. Keep the real QTTabBar COM object loaded as Explorer's backend on Windows 11,
+#    while collapsing only QTTabBar's legacy visual tab strip so native Explorer tabs remain visible.
 $tabPath = 'QTTabBar/QTTabBarClass.cs'
 $tab = [IO.File]::ReadAllText($tabPath)
 
@@ -153,15 +153,5 @@ BandHeight = QTUtility.IsThanWin11 ? 1 : Config.Skin.TabHeight + BandHeightSpace
 '@ 'Collapse legacy QTTabBar strip on Windows 11'
 
 [IO.File]::WriteAllText($tabPath, $tab, $utf8Bom)
-
-# 3. Remove the duplicate legacy ShowBrowserBar call. The core tab object is still loaded
-#    first as the invisible backend, then the actual QTButtonBar is shown.
-$loaderPath = 'QTTabBar/AutoLoader.cs'
-$loader = [IO.File]::ReadAllText($loaderPath)
-
-$loader = Replace-RegexRequired $loader '\s*object secViewBar = new Guid\("\{d2bf470e-ed1c-487f-a333-2bd8835eb6ce\}"\)\.ToString\("B"\);' '' 'Duplicate secondary tab bar declaration'
-$loader = Replace-RegexRequired $loader '\s*explorer\.ShowBrowserBar\(secViewBar, pvarShow, pvarSize\);\s*QTUtility2\.log\("QTTabBar AutoLoader 显示标签"\);' '' 'Duplicate secondary tab bar activation'
-
-[IO.File]::WriteAllText($loaderPath, $loader, $utf8Bom)
 
 Write-Host 'Core QTTabBar native-tabs + Everything integration patch applied.'
