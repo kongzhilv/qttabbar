@@ -7,14 +7,12 @@ on:
       - feat/win11-native-everything-search
     paths:
       - 'EverythingSearchBand/**'
-      - 'BandObjectLib/**'
       - '.github/workflows/everything-search-band.yml'
   pull_request:
     branches:
       - master
     paths:
       - 'EverythingSearchBand/**'
-      - 'BandObjectLib/**'
       - '.github/workflows/everything-search-band.yml'
 
 permissions:
@@ -60,11 +58,10 @@ jobs:
           if ($assembly.ImageRuntimeVersion -ne 'v2.0.50727') {
             throw "Expected CLR2 output, got $($assembly.ImageRuntimeVersion)"
           }
-          $bandObject = Resolve-Path "EverythingSearchBand\bin\Release\BandObjectLib.dll"
-          $bandAssembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($bandObject)
-          Write-Host "BandObjectLib runtime: $($bandAssembly.ImageRuntimeVersion)"
-          if ($bandAssembly.ImageRuntimeVersion -ne 'v2.0.50727') {
-            throw "BandObjectLib is not CLR2: $($bandAssembly.ImageRuntimeVersion)"
+          $refs = $assembly.GetReferencedAssemblies()
+          $bad = @($refs | Where-Object { $_.Name -eq 'BandObjectLib' })
+          if ($bad.Count -gt 0) {
+            throw 'EverythingSearchBand must be self-contained and must not reference BandObjectLib.dll'
           }
           Get-ChildItem "EverythingSearchBand\bin\Release"
 
@@ -73,8 +70,8 @@ jobs:
         run: |
           $stage = Join-Path $PWD 'release\EverythingSearchBand'
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item "EverythingSearchBand\bin\Release\*.dll" $stage -Force
-          Copy-Item "EverythingSearchBand\bin\Release\*.pdb" $stage -Force -ErrorAction SilentlyContinue
+          Copy-Item "EverythingSearchBand\bin\Release\EverythingSearchBand.dll" $stage -Force
+          Copy-Item "EverythingSearchBand\bin\Release\EverythingSearchBand.pdb" $stage -Force -ErrorAction SilentlyContinue
           Copy-Item "EverythingSearchBand\install.ps1" $stage -Force
           Copy-Item "EverythingSearchBand\uninstall.ps1" $stage -Force
           Copy-Item "EverythingSearchBand\README.md" $stage -Force
