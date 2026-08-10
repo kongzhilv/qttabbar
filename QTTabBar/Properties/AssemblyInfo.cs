@@ -31,7 +31,7 @@ using System.Resources;
 [assembly: AssemblyCompany("indiff")]
 [assembly: AssemblyProduct("QTTabBar")]
 // 2007-2020
-[assembly: AssemblyCopyright("Copyright (C)  2007-2026")]
+[assembly: AssemblyCopyright("Copyright (C)  2007-2023")]
 [assembly: AssemblyTrademark("indiff")]
 [assembly: AssemblyCulture("")]
 // [assembly: AssemblyFileVersion("2.0.0.0")]
