@@ -93,22 +93,26 @@ namespace QTTabBarLib {
                 DateTime lastActivation = DateTime.Parse((string)key.GetValue("ActivationDate", minDate));
                 if(installDate.CompareTo(lastActivation) <= 0) return;
 
-                object secViewBar = new Guid("{d2bf470e-ed1c-487f-a333-2bd8835eb6ce}").ToString("B");
                 object pvaTabBar = new Guid("{d2bf470e-ed1c-487f-a333-2bd8835eb6ce}").ToString("B");
                 object pvaButtonBar = new Guid("{d2bf470e-ed1c-487f-a666-2bd8835eb6ce}").ToString("B");
                 object pvarShow = true;
+                object pvarHide = false;
                 object pvarSize = null;
                 try {
-
-
+                    // Load the real QTTabBar core first because QTButtonBar uses it as its Explorer backend.
                     explorer.ShowBrowserBar(pvaTabBar, pvarShow, pvarSize);
-                    QTUtility2.log("QTTabBar AutoLoader 显示标签");
-                    
+                    QTUtility2.log("QTTabBar AutoLoader 加载核心标签后端");
+
+                    // Show the real QTButtonBar. On Windows 11 this bar is reduced to the Everything search box.
                     explorer.ShowBrowserBar(pvaButtonBar, pvarShow, pvarSize);
                     QTUtility2.log("QTTabBar AutoLoader 显示工具栏");
 
-                    explorer.ShowBrowserBar(secViewBar, pvarShow, pvarSize);
-                    QTUtility2.log("QTTabBar AutoLoader 显示标签");
+                    // Windows 11 already has native tabs. Hide only QTTabBar's legacy tab strip while keeping
+                    // its COM object alive; BandObject.ShowDW(false) only changes Visible and does not CloseDW.
+                    if(QTUtility.IsThanWin11) {
+                        explorer.ShowBrowserBar(pvaTabBar, pvarHide, pvarSize);
+                        QTUtility2.log("QTTabBar AutoLoader 保留 Windows 11 原生标签");
+                    }
                 }
                 catch(COMException e) {
                     QTUtility2.MakeErrorLog(e, "ActivateIt");

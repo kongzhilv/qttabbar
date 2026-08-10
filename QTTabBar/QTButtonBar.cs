@@ -375,7 +375,10 @@ namespace QTTabBarLib {
             // 是否显示按钮标签
             bool showButtonLabels = Config.BBar.ShowButtonLabels;
             UnloadPluginsOnCreation();
-            foreach(int index in Config.BBar.ButtonIndexes) {
+            int[] buttonIndexes = QTUtility.IsThanWin11
+                    ? new int[] { BII_FILTERBAR }
+                    : Config.BBar.ButtonIndexes;
+            foreach(int index in buttonIndexes) {
                 ToolStripItem item;
                 switch(index) {
                     case BII_SEPARATOR: // 分割
@@ -844,8 +847,8 @@ namespace QTTabBarLib {
             // toolStrip.OverflowButton.BackColor = Color.Pink;
             Controls.Add(toolStrip);
             // 配置高度 BarHeight add by indiff 
-            Height = BarHeight + 100 ;
-            MinSize = new Size(20, BarHeight + 100);
+            Height = BarHeight;
+            MinSize = new Size(20, BarHeight);
             toolStrip.ResumeLayout(false);
             ResumeLayout();
         }
@@ -1211,7 +1214,7 @@ namespace QTTabBarLib {
             if(e.KeyChar == '\r') {
                 string text = searchBox.Text;
                 if(text.Length > 0) {
-                    ShellViewIncrementalSearch(text);
+                    LaunchEverythingSearch(text);
                     e.Handled = true;
                 }
             }
@@ -1240,14 +1243,89 @@ namespace QTTabBarLib {
         private void searchBox_TextChanged(object sender, EventArgs e) {
             timerSerachBox_Search.Stop();
             timerSearchBox_Rearrange.Stop();
-            string text = searchBox.Text;
-            if(!text.StartsWith("/") || ((text.Length >= 3) && text.EndsWith("/"))) {
-                fSearchBoxInputStart = true;
-                strSearch = text;
-                iSearchResultCount = -1;
-                // TODO: If the item count is less than a certain cutoff, skip the timer and just call it directly.
-                timerSerachBox_Search.Start();
+            strSearch = searchBox.Text;
+            fSearchBoxInputStart = false;
+            iSearchResultCount = -1;
+        }
+
+        private bool LaunchEverythingSearch(string query) {
+            if(String.IsNullOrEmpty(query)) return false;
+
+            try {
+                string executable = ResolveEverythingPath();
+                if(String.IsNullOrEmpty(executable)) {
+                    MessageBox.Show(
+                        "Everything.exe was not found. Set HKCU\\Software\\QTTabBar\\EverythingPath to your Everything.exe path.",
+                        "QTTabBar Everything Search",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    return false;
+                }
+
+                string folder = GetCurrentExplorerPath();
+                StringBuilder arguments = new StringBuilder("-nonewwindow -nomaximized ");
+                if(!String.IsNullOrEmpty(folder)) {
+                    arguments.Append("-path ").Append(QuoteProcessArgument(folder)).Append(' ');
+                }
+                arguments.Append("-s ").Append(QuoteProcessArgument(query));
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo {
+                    FileName = executable,
+                    Arguments = arguments.ToString(),
+                    UseShellExecute = true
+                });
+                return true;
             }
+            catch(Exception exception) {
+                QTUtility2.MakeErrorLog(exception, "QTButtonBar Everything search");
+                MessageBox.Show(
+                    exception.Message,
+                    "QTTabBar Everything Search",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return false;
+            }
+        }
+
+        private string GetCurrentExplorerPath() {
+            if(Explorer == null) return null;
+
+            string locationUrl = Explorer.LocationURL;
+            if(String.IsNullOrEmpty(locationUrl)) return null;
+
+            Uri uri;
+            if(Uri.TryCreate(locationUrl, UriKind.Absolute, out uri) && uri.IsFile) {
+                return uri.LocalPath;
+            }
+            return null;
+        }
+
+        private static string ResolveEverythingPath() {
+            string configured = null;
+            using(RegistryKey key = Registry.CurrentUser.OpenSubKey(RegConst.Root)) {
+                if(key != null) configured = key.GetValue("EverythingPath", null) as string;
+            }
+
+            string programFiles = Environment.GetEnvironmentVariable("ProgramW6432")
+                    ?? Environment.GetEnvironmentVariable("ProgramFiles");
+            string programFilesX86 = Environment.GetEnvironmentVariable("ProgramFiles(x86)");
+
+            string[] candidates = new string[] {
+                configured,
+                @"D:\Everything\Everything.exe",
+                @"D:\Everything\Everything64.exe",
+                String.IsNullOrEmpty(programFiles) ? null : Path.Combine(programFiles, @"Everything\Everything.exe"),
+                String.IsNullOrEmpty(programFilesX86) ? null : Path.Combine(programFilesX86, @"Everything\Everything.exe")
+            };
+
+            foreach(string candidate in candidates) {
+                if(!String.IsNullOrEmpty(candidate) && File.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
+        private static string QuoteProcessArgument(string value) {
+            return "\"" + (value ?? String.Empty).Replace("\"", "\\\"") + "\"";
         }
 
         private static int SearchBoxWidth {

@@ -1,0 +1,70 @@
+name: QTTabBar core build
+
+on:
+  push:
+    branches:
+      - fix/core-native-tabs-everything
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - '.github/workflows/qttabbar-core-build.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - '.github/workflows/qttabbar-core-build.yml'
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Windows 11 build inputs
+        shell: powershell
+        run: |
+          $project = "QTTabBar\QTTabBar.csproj"
+          $xml = Get-Content $project -Raw
+          $xml = $xml -replace '<WrapperTool>primary</WrapperTool>', '<WrapperTool>tlbimp</WrapperTool>'
+          $xml = $xml -replace '<EmbedInteropTypes>True</EmbedInteropTypes>', '<EmbedInteropTypes>False</EmbedInteropTypes>'
+          if ($xml -notmatch '<Reference Include="System.Xaml"') {
+            $replacement = '<Reference Include="System.Xml.Linq" />' + "`r`n    " + '<Reference Include="System.Xaml" />'
+            $xml = $xml -replace '<Reference Include="System.Xml.Linq" />', $replacement
+          }
+          $xml = $xml -replace '<NotifyPropertyWeaverMsBuildTask.WeavingTask />', '<NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(IntermediateOutputPath)$(TargetFileName)" References="@(ReferencePath)" />'
+          Set-Content $project $xml -Encoding UTF8
+
+      - name: Build actual QTTabBar assembly
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          $solutionDir = "$PWD\"
+          & $msbuild "QTTabBar\QTTabBar.csproj" /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /p:TargetFrameworkVersion=v4.8 "/p:SolutionDir=$solutionDir" /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify QTTabBar output
+        shell: powershell
+        run: |
+          $dll = Resolve-Path "QTTabBar\bin\Release\QTTabBar.dll"
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($dll)
+          Write-Host "QTTabBar runtime: $($assembly.ImageRuntimeVersion)"
+          if ($assembly.ImageRuntimeVersion -ne 'v4.0.30319') { throw "Expected CLR4 QTTabBar.dll" }
+          Get-Item $dll
+
+      - name: Upload QTTabBar core artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QTTabBar-core-native-everything
+          path: |
+            QTTabBar/bin/Release/QTTabBar.dll
+            BandObjectLib/bin/Release/BandObjectLib.dll
+            BandObjectLib/bin/Release/Interop.SHDocVw.dll
+            QTPluginLib/bin/Release/QTPluginLib.dll
+          if-no-files-found: error

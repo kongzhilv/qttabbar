@@ -1,0 +1,158 @@
+name: QTTabBar native Everything release
+
+on:
+  push:
+    branches:
+      - master
+      - fix/core-native-tabs-everything
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - 'InstallerHelper/**'
+      - 'InstallerMini/**'
+      - '.github/workflows/qttabbar-native-everything-release.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - 'InstallerHelper/**'
+      - 'InstallerMini/**'
+      - '.github/workflows/qttabbar-native-everything-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install WiX Toolset 3
+        shell: powershell
+        run: |
+          choco install wixtoolset -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $candle = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $candle) { throw 'WiX Toolset v3 candle.exe not found' }
+          $wixRoot = Split-Path (Split-Path $candle.FullName -Parent) -Parent
+          $wixTargets = Get-ChildItem $wixRoot -Recurse -Filter 'Wix.targets' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $wixTargets) {
+            $wixTargets = Get-ChildItem "${env:ProgramFiles(x86)}\MSBuild" -Recurse -Filter 'Wix.targets' -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if (-not $wixTargets) { throw 'WiX Toolset v3 Wix.targets not found' }
+          "WIX=$wixRoot\" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WixTargetsPath=$($wixTargets.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "WiX root: $wixRoot"
+          Write-Host "WiX targets: $($wixTargets.FullName)"
+
+      - name: Prepare Windows 11 QTTabBar build inputs
+        shell: powershell
+        run: |
+          $project = "QTTabBar\QTTabBar.csproj"
+          $xml = Get-Content $project -Raw
+          $xml = $xml -replace '<WrapperTool>primary</WrapperTool>', '<WrapperTool>tlbimp</WrapperTool>'
+          $xml = $xml -replace '<EmbedInteropTypes>True</EmbedInteropTypes>', '<EmbedInteropTypes>False</EmbedInteropTypes>'
+          if ($xml -notmatch '<Reference Include="System.Xaml"') {
+            $replacement = '<Reference Include="System.Xml.Linq" />' + "`r`n    " + '<Reference Include="System.Xaml" />'
+            $xml = $xml -replace '<Reference Include="System.Xml.Linq" />', $replacement
+          }
+          $xml = $xml -replace '<NotifyPropertyWeaverMsBuildTask.WeavingTask />', '<NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(IntermediateOutputPath)$(TargetFileName)" References="@(ReferencePath)" />'
+          Set-Content $project $xml -Encoding UTF8
+
+      - name: Build actual QTTabBar core
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          $solutionDir = "$PWD\"
+          & $msbuild "QTTabBar\QTTabBar.csproj" /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /p:TargetFrameworkVersion=v4.8 "/p:SolutionDir=$solutionDir" /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify QTTabBar core
+        shell: powershell
+        run: |
+          $dll = Resolve-Path "QTTabBar\bin\Release\QTTabBar.dll"
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($dll)
+          Write-Host "QTTabBar version: $($assembly.GetName().Version)"
+          Write-Host "QTTabBar runtime: $($assembly.ImageRuntimeVersion)"
+          if ($assembly.GetName().Version.ToString() -ne '1.5.6.2') { throw 'Unexpected QTTabBar assembly version' }
+          if ($assembly.ImageRuntimeVersion -ne 'v4.0.30319') { throw 'Unexpected QTTabBar CLR runtime' }
+
+      - name: Build installer helper
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          & $msbuild "InstallerHelper\InstallerHelper.vcxproj" /t:Rebuild /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build no-plugin QTTabBar installer
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          & $msbuild "InstallerMini\InstallerMini.wixproj" /t:Rebuild /p:Configuration=Release /p:Platform=x86 "/p:WixTargetsPath=$env:WixTargetsPath" /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Stage release assets
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          $msis = @(Get-ChildItem "InstallerMini\bin\Release" -Recurse -Filter '*.msi')
+          if ($msis.Count -eq 0) { throw 'No QTTabBar MSI was produced' }
+          foreach ($msi in $msis) {
+            $parent = Split-Path $msi.DirectoryName -Leaf
+            $suffix = if ($parent -eq 'Release') { 'default' } else { $parent }
+            Copy-Item $msi.FullName (Join-Path 'release' ("QTTabBar-1.5.6.2-NativeTabs-Everything-$suffix.msi")) -Force
+          }
+          Copy-Item "QTTabBar\bin\Release\QTTabBar.dll" "release\QTTabBar.dll" -Force
+          @'
+          QTTabBar 1.5.6.2 Native Tabs + Everything
+
+          This is the modified QTTabBar application itself, built from the fork's QTTabBar core.
+          Windows 11 keeps Explorer native tabs. QTTabBar's real button bar is reduced to its built-in search box.
+          Press Enter in that box to launch Everything scoped to the current Explorer folder.
+
+          Everything lookup order:
+          1. HKCU\Software\QTTabBar\EverythingPath
+          2. D:\Everything\Everything.exe
+          3. D:\Everything\Everything64.exe
+          4. Program Files\Everything\Everything.exe
+          5. Program Files (x86)\Everything\Everything.exe
+
+          Target: Windows 11 x64 with .NET Framework 4.8 or later.
+          '@ | Set-Content "release\README.txt" -Encoding UTF8
+          Compress-Archive -Path "release\*.msi","release\QTTabBar.dll","release\README.txt" -DestinationPath "release\QTTabBar-1.5.6.2-NativeTabs-Everything.zip" -Force
+          Get-ChildItem release
+
+      - name: Upload release build
+        uses: actions/upload-artifact@v4
+        with:
+          name: QTTabBar-1.5.6.2-NativeTabs-Everything
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v1.5.6.2-native-everything'
+          cmd /c "gh release view $tag >nul 2>nul"
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag release\* --clobber
+          }
+          else {
+            gh release create $tag release\* --target "$env:GITHUB_SHA" --title "QTTabBar 1.5.6.2 - Windows 11 Native Tabs + Everything" --notes "Core QTTabBar fork build. Keeps Windows 11 Explorer native tabs, hides the legacy QTTabBar visual tab strip, and uses QTTabBar's built-in button-bar search box to launch Everything scoped to the current Explorer folder. This release uses the no-plugin InstallerMini package."
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

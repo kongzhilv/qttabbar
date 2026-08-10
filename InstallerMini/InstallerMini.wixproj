@@ -6,7 +6,7 @@
     <ProductVersion>3.5</ProductVersion>
     <ProjectGuid>{ba4e3bad-5d34-48b4-90e8-d0b10f1563da}</ProjectGuid>
     <SchemaVersion>2.0</SchemaVersion>
-    <OutputName>QTTabBarSetup%28No Plugins%29</OutputName>
+    <OutputName>QTTabBarSetup-NativeTabs-Everything</OutputName>
     <OutputType>Package</OutputType>
     <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' AND '$(MSBuildExtensionsPath32)' != '' ">$(MSBuildExtensionsPath32)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
     <WixTargetsPath Condition=" '$(WixTargetsPath)' == '' ">$(MSBuildExtensionsPath)\Microsoft\WiX\v3.x\Wix.targets</WixTargetsPath>
