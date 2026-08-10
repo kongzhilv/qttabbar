@@ -86,7 +86,7 @@ jobs:
         run: |
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
-          & $msbuild "InstallerHelper\InstallerHelper.vcxproj" /t:Rebuild /p:Configuration=Release /p:Platform=Win32 /verbosity:minimal
+          & $msbuild "InstallerHelper\InstallerHelper.vcxproj" /t:Rebuild /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 /verbosity:minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build no-plugin QTTabBar installer
