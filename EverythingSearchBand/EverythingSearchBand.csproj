@@ -33,14 +33,9 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CompatBandObject.cs" />
     <Compile Include="EverythingSearchBand.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\BandObjectLib\BandObjectLib.csproj">
-      <Project>{BDB3B670-A17B-483E-954C-52FC2B6FF9D3}</Project>
-      <Name>BandObjectLib</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
