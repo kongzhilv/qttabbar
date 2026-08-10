@@ -1,0 +1,67 @@
+name: QTTabBar core build
+
+on:
+  push:
+    branches:
+      - fix/core-native-tabs-everything
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - '.github/workflows/qttabbar-core-build.yml'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'QTTabBar/**'
+      - 'BandObjectLib/**'
+      - 'QTPluginLib/**'
+      - '.github/workflows/qttabbar-core-build.yml'
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install .NET Framework 3.5 developer tools
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $setup = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $installPath = & $vswhere -latest -products * -property installationPath
+          if (-not $installPath) { throw 'Visual Studio installation not found' }
+          & $setup modify --installPath $installPath --add Microsoft.Net.Component.3.5.DeveloperTools --quiet --norestart
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit $LASTEXITCODE }
+          $refs = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\v3.5\System.Core.dll"
+          if (-not (Test-Path $refs)) { throw ".NET Framework 3.5 reference assemblies not found: $refs" }
+
+      - name: Build actual QTTabBar assembly
+        shell: powershell
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          & $msbuild "QTTabBar\QTTabBar.csproj" /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /verbosity:minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify QTTabBar output
+        shell: powershell
+        run: |
+          $dll = Resolve-Path "QTTabBar\bin\Release\QTTabBar.dll"
+          $assembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($dll)
+          Write-Host "QTTabBar runtime: $($assembly.ImageRuntimeVersion)"
+          if ($assembly.ImageRuntimeVersion -ne 'v2.0.50727') { throw "Expected CLR2 QTTabBar.dll" }
+          Get-Item $dll
+
+      - name: Upload QTTabBar core artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QTTabBar-core-native-everything
+          path: |
+            QTTabBar/bin/Release/QTTabBar.dll
+            BandObjectLib/bin/Release/BandObjectLib.dll
+            BandObjectLib/bin/Release/Interop.SHDocVw.dll
+            QTPluginLib/bin/Release/QTPluginLib.dll
+          if-no-files-found: error
