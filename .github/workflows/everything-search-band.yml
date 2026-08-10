@@ -28,22 +28,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure .NET Framework 3.5 build tools
+      - name: Install .NET Framework 3.5 developer tools
         shell: powershell
         run: |
-          $msbuild = "$env:WINDIR\Microsoft.NET\Framework\v3.5\MSBuild.exe"
-          if (-not (Test-Path $msbuild)) {
-            dism.exe /Online /Enable-Feature /FeatureName:NetFx3 /All /NoRestart
-          }
-          if (-not (Test-Path $msbuild)) {
-            throw "MSBuild 3.5 is unavailable: $msbuild"
-          }
-          & $msbuild -version
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $setup = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe"
+          $installPath = & $vswhere -latest -products * -property installationPath
+          if (-not $installPath) { throw 'Visual Studio installation not found' }
+          Write-Host "Visual Studio: $installPath"
+          & $setup modify --installPath $installPath --add Microsoft.Net.Component.3.5.DeveloperTools --quiet --norestart
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit $LASTEXITCODE }
+          $refs = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\v3.5\System.Core.dll"
+          if (-not (Test-Path $refs)) { throw ".NET Framework 3.5 reference assemblies not found: $refs" }
 
       - name: Build CLR2 / .NET Framework 3.5
         shell: powershell
         run: |
-          $msbuild = "$env:WINDIR\Microsoft.NET\Framework\v3.5\MSBuild.exe"
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $msbuild = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw 'MSBuild not found' }
+          Write-Host "MSBuild: $msbuild"
           & $msbuild "EverythingSearchBand\EverythingSearchBand.csproj" /t:Rebuild /p:Configuration=Release /p:Platform=AnyCPU /verbosity:minimal
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -55,6 +59,12 @@ jobs:
           Write-Host "Runtime: $($assembly.ImageRuntimeVersion)"
           if ($assembly.ImageRuntimeVersion -ne 'v2.0.50727') {
             throw "Expected CLR2 output, got $($assembly.ImageRuntimeVersion)"
+          }
+          $bandObject = Resolve-Path "EverythingSearchBand\bin\Release\BandObjectLib.dll"
+          $bandAssembly = [Reflection.Assembly]::ReflectionOnlyLoadFrom($bandObject)
+          Write-Host "BandObjectLib runtime: $($bandAssembly.ImageRuntimeVersion)"
+          if ($bandAssembly.ImageRuntimeVersion -ne 'v2.0.50727') {
+            throw "BandObjectLib is not CLR2: $($bandAssembly.ImageRuntimeVersion)"
           }
           Get-ChildItem "EverythingSearchBand\bin\Release"
 
