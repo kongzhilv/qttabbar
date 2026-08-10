@@ -57,4 +57,4 @@ Run elevated PowerShell:
 
 ## Architecture
 
-This is a separate COM deskband assembly. It reuses `BandObjectLib` from this repository but does not depend on `QTTabBarClass`, `PluginServer`, or the QTTabBar tab strip. The included Browser Helper Object auto-loader calls `ShowBrowserBar` for the Everything band on Explorer windows.
+This is a separate self-contained COM deskband assembly. It includes only the minimal Explorer deskband/COM compatibility layer it needs and has no runtime dependency on `QTTabBarClass`, `PluginServer`, the QTTabBar tab strip, or a separate `BandObjectLib.dll`. The included Browser Helper Object auto-loader calls `ShowBrowserBar` for the Everything band on Explorer windows.
