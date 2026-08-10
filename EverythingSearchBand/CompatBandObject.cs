@@ -10,7 +10,7 @@ namespace BandObjectLib
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     public struct DESKBANDINFO
     {
-        public uint dwMask;
+        public DBIM dwMask;
         public POINTL ptMinSize;
         public POINTL ptMaxSize;
         public POINTL ptIntegral;
@@ -243,37 +243,37 @@ namespace BandObjectLib
 
         public virtual void GetBandInfo(uint dwBandID, uint dwViewMode, ref DESKBANDINFO pdbi)
         {
-            if ((pdbi.dwMask & (uint)DBIM.ACTUAL) != 0)
+            if ((pdbi.dwMask & DBIM.ACTUAL) != 0)
             {
                 pdbi.ptActual.X = Size.Width;
                 pdbi.ptActual.Y = Size.Height;
             }
-            if ((pdbi.dwMask & (uint)DBIM.MINSIZE) != 0)
+            if ((pdbi.dwMask & DBIM.MINSIZE) != 0)
             {
                 pdbi.ptMinSize.X = MinSize.Width;
                 pdbi.ptMinSize.Y = MinSize.Height;
             }
-            if ((pdbi.dwMask & (uint)DBIM.MAXSIZE) != 0)
+            if ((pdbi.dwMask & DBIM.MAXSIZE) != 0)
             {
                 pdbi.ptMaxSize.X = -1;
                 pdbi.ptMaxSize.Y = -1;
             }
-            if ((pdbi.dwMask & (uint)DBIM.INTEGRAL) != 0)
+            if ((pdbi.dwMask & DBIM.INTEGRAL) != 0)
             {
                 pdbi.ptIntegral.X = -1;
                 pdbi.ptIntegral.Y = -1;
             }
-            if ((pdbi.dwMask & (uint)DBIM.MODEFLAGS) != 0)
+            if ((pdbi.dwMask & DBIM.MODEFLAGS) != 0)
             {
                 pdbi.dwModeFlags = DBIMF.NORMAL;
             }
-            if ((pdbi.dwMask & (uint)DBIM.TITLE) != 0)
+            if ((pdbi.dwMask & DBIM.TITLE) != 0)
             {
                 pdbi.wszTitle = null;
             }
-            if ((pdbi.dwMask & (uint)DBIM.BKCOLOR) != 0)
+            if ((pdbi.dwMask & DBIM.BKCOLOR) != 0)
             {
-                pdbi.dwMask &= ~(uint)DBIM.BKCOLOR;
+                pdbi.dwMask &= ~DBIM.BKCOLOR;
             }
         }
 
