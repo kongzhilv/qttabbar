@@ -58,7 +58,7 @@ jobs:
             $replacement = '<Reference Include="System.Xml.Linq" />' + "`r`n    " + '<Reference Include="System.Xaml" />'
             $xml = $xml -replace '<Reference Include="System.Xml.Linq" />', $replacement
           }
-          $xml = $xml -replace '<NotifyPropertyWeaverMsBuildTask.WeavingTask />', '<NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(TargetPath)" />'
+          $xml = $xml -replace '<NotifyPropertyWeaverMsBuildTask.WeavingTask />', '<NotifyPropertyWeaverMsBuildTask.WeavingTask TargetPath="$(IntermediateOutputPath)$(TargetFileName)" />'
           Set-Content $project $xml -Encoding UTF8
 
       - name: Build actual QTTabBar core
