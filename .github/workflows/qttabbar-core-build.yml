@@ -28,11 +28,15 @@ jobs:
       - name: Prepare Windows 11 build inputs
         shell: powershell
         run: |
-          # VS2022 no longer ships the old MSHTML primary interop assembly expected by this legacy project.
-          # Generate the wrapper from the registered type library instead for the CI/release build.
+          # This is a legacy .NET 3.5 project. For the Windows 11 CI/release build,
+          # use the registered COM type libraries and the CLR4 WPF assembly set.
           $project = "QTTabBar\QTTabBar.csproj"
           $xml = Get-Content $project -Raw
           $xml = $xml -replace '<WrapperTool>primary</WrapperTool>', '<WrapperTool>tlbimp</WrapperTool>'
+          $xml = $xml -replace '<EmbedInteropTypes>True</EmbedInteropTypes>', '<EmbedInteropTypes>False</EmbedInteropTypes>'
+          if ($xml -notmatch '<Reference Include="System.Xaml"') {
+            $xml = $xml -replace '<Reference Include="System.Xml.Linq" />', "<Reference Include=\"System.Xml.Linq\" />`r`n    <Reference Include=\"System.Xaml\" />"
+          }
           Set-Content $project $xml -Encoding UTF8
 
       - name: Build actual QTTabBar assembly
